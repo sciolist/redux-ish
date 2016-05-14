@@ -1,21 +1,37 @@
-const REDUCER_KEY = Symbol('Reducer');
-const ISH_ACTION = Symbol('ISH_ACTION');
+// @flow
+const REDUCER_KEY = '@@ish/Reducer';
+const ISH_ACTION = '@@ish/ISH_ACTION';
 const PREFIX = '@@ish/';
 
-export function combine(ishActions) {
+/*::
+type IshReducer = {
+  ISH_ACTION: function
+};
+
+type IshConfig = {
+  initialState?: any,
+  dispatchType?: string
+}
+*/
+
+export default createActions;
+
+export function combine(ishActions /*: IshReducer[]*/) {
   return ishActions.reduce((val, next) => (
     Object.assign(val, next[REDUCER_KEY])
   ), {});
 }
 
-export const middleware = ({ dispatch, getState }) => next => action => {
+export const middleware = (reduxStore /*:Object*/) => (next /*:function*/) => (action /*:Object*/) => {
   if (ISH_ACTION in action) {
+    let { dispatch, getState } = reduxStore;
     let { type, reduxDispatchType, next } = action;
     let state = (payload, extra) => dispatch({ ...extra, type: reduxDispatchType, payload });
     if (typeof next !== 'function') {
       return state(next);
     }
     state.initial = getState()[type];
+    // $flow-ignore
     Object.defineProperty(state, 'current', {
       get() { return getState()[type] }
     });
@@ -24,11 +40,8 @@ export const middleware = ({ dispatch, getState }) => next => action => {
   return next(action);
 };
 
-export default function createActions(name, config, stateCreator) {
-  if (arguments.length === 2) {
-    stateCreator = config;
-    config = {};
-  }
+function createActions/*::<T : Object>*/(name /*:string*/, stateCreator /*:T*/, actionConfig /*:?IshConfig*/) /*: T*/ {
+  let config /*: IshConfig*/ = actionConfig || {};
 
   const reduxDispatchType = config.dispatchType || PREFIX + name;
   const reducer = (state, action) => {
@@ -38,7 +51,7 @@ export default function createActions(name, config, stateCreator) {
     }
     return state;
   };
-
+  
   let functions = {
     KEY: reduxDispatchType,
     [REDUCER_KEY]: { [name]: reducer }
@@ -51,10 +64,11 @@ export default function createActions(name, config, stateCreator) {
     }
     functions[key] = wrappedValue;
   });
-  return functions;
+
+  let fn /*: any*/ = functions;
+  return fn;
 }
 
 function wrapActionCall(type, reduxDispatchType, inner) {
   return (...args) => ({ [ISH_ACTION]: true, reduxDispatchType, type, next: inner(...args) });
 }
-
